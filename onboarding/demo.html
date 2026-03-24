@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brain // Live</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0e14;
+  --bg-surface: #111921;
+  --bg-input: #0d1117;
+  --border: #1e2a35;
+  --text: #d4d4d4;
+  --text-dim: #6e7a86;
+  --green: #00ff88;
+  --green-dim: #00cc6a;
+  --blue: #58a6ff;
+  --orange: #f0883e;
+  --red: #ff7b72;
+  --purple: #bc8cff;
+  --yellow: #e3b341;
+  --cyan: #56d4dd;
+  --white: #e6edf3;
+  --font: 'Courier New', Courier, monospace;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.65;
+  overflow: hidden;
+  cursor: default;
+}
+
+/* Scanline */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.015) 3px, rgba(0,0,0,0.015) 6px);
+  pointer-events: none;
+  z-index: 9999;
+}
+
+#app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── HEADER ── */
+header {
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+.logo .brain { color: var(--green); text-shadow: 0 0 12px rgba(0,255,136,0.3); }
+.logo .sep { color: var(--text-dim); margin: 0 2px; }
+.logo .live { color: var(--red); text-shadow: 0 0 8px rgba(255,123,114,0.3); animation: livePulse 2s ease-in-out infinite; }
+
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.scenario-title {
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  min-width: 260px;
+  text-align: center;
+  transition: color 0.3s;
+}
+
+.mcps {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.mcp-badge {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  transition: all 0.4s;
+  text-transform: uppercase;
+}
+
+.mcp-badge.active {
+  border-color: var(--green);
+  color: var(--green);
+  box-shadow: 0 0 8px rgba(0,255,136,0.15);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-ctrl {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.3s;
+  letter-spacing: 0.5px;
+}
+.btn-ctrl:hover { border-color: var(--green); color: var(--green); }
+.btn-ctrl.active { border-color: var(--green); color: var(--green); }
+
+/* ── TERMINAL ── */
+.terminal-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.terminal {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 32px 60px;
+  scroll-behavior: smooth;
+}
+
+.terminal::-webkit-scrollbar { width: 4px; }
+.terminal::-webkit-scrollbar-track { background: var(--bg); }
+.terminal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Terminal lines */
+.t-line {
+  margin-bottom: 2px;
+  opacity: 0;
+  animation: lineIn 0.15s forwards;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+@keyframes lineIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* User prompt */
+.t-prompt {
+  color: var(--green);
+  margin-top: 16px;
+  margin-bottom: 4px;
+}
+.t-prompt .caret {
+  display: inline-block;
+  width: 8px;
+  height: 14px;
+  background: var(--green);
+  vertical-align: middle;
+  margin-left: 2px;
+  animation: blink 0.7s step-end infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* Reading indicator */
+.t-reading {
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: 12px;
+  margin: 6px 0;
+}
+.t-reading .file { color: var(--cyan); font-style: normal; }
+.t-reading .spinner {
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Claude output lines */
+.t-out { color: var(--text); }
+.t-header { color: var(--blue); font-weight: bold; font-size: 15px; margin-top: 12px; margin-bottom: 4px; }
+.t-subheader { color: var(--green); font-weight: bold; font-size: 13px; margin-top: 10px; margin-bottom: 2px; }
+.t-table { color: var(--text-dim); font-size: 13px; }
+.t-table-header { color: var(--text-dim); font-size: 13px; border-bottom: 1px solid var(--border); padding-bottom: 2px; }
+.t-bullet { color: var(--text); padding-left: 8px; }
+.t-status-ok { color: var(--green); }
+.t-status-warn { color: var(--orange); }
+.t-status-bad { color: var(--red); }
+.t-status-neutral { color: var(--text-dim); }
+.t-dim { color: var(--text-dim); font-size: 12px; }
+.t-bold { color: var(--white); }
+.t-code { color: var(--green); background: rgba(0,255,136,0.06); padding: 0 3px; border-radius: 2px; }
+.t-mcp { color: var(--purple); }
+.t-divider { border-top: 1px solid var(--border); margin: 8px 0; height: 0; }
+
+/* Inline highlights */
+.h-green { color: var(--green); }
+.h-blue { color: var(--blue); }
+.h-orange { color: var(--orange); }
+.h-red { color: var(--red); }
+.h-purple { color: var(--purple); }
+.h-cyan { color: var(--cyan); }
+.h-dim { color: var(--text-dim); }
+.h-bold { color: var(--white); font-weight: bold; }
+
+/* ── INTRO / OUTRO SCREENS ── */
+.screen-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  transition: opacity 0.8s;
+}
+.screen-overlay.fade-out { opacity: 0; pointer-events: none; }
+.screen-overlay.hidden { display: none; }
+
+.intro-logo {
+  font-size: 42px;
+  font-weight: bold;
+  letter-spacing: 8px;
+  margin-bottom: 12px;
+  opacity: 0;
+  animation: introFade 1s 0.3s forwards;
+}
+.intro-logo .brain { color: var(--green); text-shadow: 0 0 30px rgba(0,255,136,0.4); }
+.intro-logo .sep { color: var(--text-dim); margin: 0 6px; }
+.intro-logo .live { color: var(--red); text-shadow: 0 0 15px rgba(255,123,114,0.4); }
+
+.intro-sub {
+  color: var(--text-dim);
+  font-size: 14px;
+  letter-spacing: 2px;
+  margin-bottom: 32px;
+  opacity: 0;
+  animation: introFade 0.8s 1s forwards;
+}
+
+.intro-stats {
+  display: flex;
+  gap: 32px;
+  opacity: 0;
+  animation: introFade 0.8s 1.5s forwards;
+}
+.intro-stat {
+  text-align: center;
+}
+.intro-stat-num {
+  font-size: 28px;
+  color: var(--green);
+  font-weight: bold;
+}
+.intro-stat-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.intro-start {
+  margin-top: 36px;
+  opacity: 0;
+  animation: introFade 0.6s 2.2s forwards;
+  color: var(--text-dim);
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+@keyframes introFade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Outro */
+.outro-title {
+  font-size: 20px;
+  color: var(--green);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+  text-shadow: 0 0 15px rgba(0,255,136,0.3);
+}
+
+.outro-points {
+  list-style: none;
+  margin-bottom: 32px;
+}
+.outro-points li {
+  color: var(--text);
+  font-size: 14px;
+  margin-bottom: 10px;
+  padding-left: 16px;
+  position: relative;
+}
+.outro-points li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+.outro-cta {
+  color: var(--text-dim);
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+.outro-cta strong { color: var(--green); }
+
+/* ── TIMELINE ── */
+.timeline {
+  padding: 10px 24px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.tl-dot {
+  width: 32px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  cursor: pointer;
+  transition: all 0.4s;
+  border: none;
+  position: relative;
+}
+.tl-dot.active { background: var(--green); box-shadow: 0 0 8px rgba(0,255,136,0.3); }
+.tl-dot.done { background: var(--green-dim); }
+.tl-dot:hover { background: var(--green); opacity: 0.7; }
+
+.tl-label {
+  color: var(--text-dim);
+  font-size: 10px;
+  margin-left: 12px;
+  letter-spacing: 0.5px;
+}
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- INTRO -->
+  <div class="screen-overlay" id="intro-screen">
+    <div class="intro-logo">
+      <span class="brain">BRAIN</span><span class="sep">//</span><span class="live">LIVE</span>
+    </div>
+    <div class="intro-sub">See what an AI-powered project brain can do</div>
+    <div class="intro-stats">
+      <div class="intro-stat"><div class="intro-stat-num">6</div><div class="intro-stat-label">Scenarios</div></div>
+      <div class="intro-stat"><div class="intro-stat-num">5</div><div class="intro-stat-label">Integrations</div></div>
+      <div class="intro-stat"><div class="intro-stat-num">&lt;2m</div><div class="intro-stat-label">Runtime</div></div>
+    </div>
+    <div class="intro-start">Press <strong style="color:var(--green)">SPACE</strong> or click anywhere to start</div>
+  </div>
+
+  <!-- OUTRO -->
+  <div class="screen-overlay hidden" id="outro-screen">
+    <div class="outro-title">What You Just Saw</div>
+    <ul class="outro-points">
+      <li>Cross-referenced targets, plans, and capacity for instant risk analysis</li>
+      <li>Built a custom skill from a single sentence</li>
+      <li>Synced design docs from Notion and flagged conflicts automatically</li>
+      <li>Posted a compiled status update to Slack with zero manual writing</li>
+      <li>Tracked validation progress across hypotheses and features</li>
+      <li>Pulled GitHub PRs and mapped them to feature spec coverage</li>
+    </ul>
+    <div class="outro-cta">All powered by <strong>structured markdown + Claude Code skills + MCP integrations</strong></div>
+    <div class="intro-start" style="margin-top:24px">Press <strong style="color:var(--green)">SPACE</strong> to replay &mdash; or open <strong style="color:var(--green)">index.html</strong> to build your own brain</div>
+  </div>
+
+  <!-- MAIN UI -->
+  <header id="main-header" class="hidden">
+    <div>
+      <span class="logo"><span class="brain">BRAIN</span><span class="sep">//</span><span class="live">LIVE</span></span>
+    </div>
+    <div class="header-center">
+      <div class="scenario-title" id="scenario-title">---</div>
+      <div class="mcps">
+        <span class="mcp-badge" id="mcp-notion" title="Notion">Notion</span>
+        <span class="mcp-badge" id="mcp-slack" title="Slack">Slack</span>
+        <span class="mcp-badge" id="mcp-clickup" title="ClickUp">ClickUp</span>
+        <span class="mcp-badge" id="mcp-github" title="GitHub">GitHub</span>
+        <span class="mcp-badge" id="mcp-gdrive" title="Google Drive">Drive</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="btn-ctrl" id="btn-pause" onclick="togglePause()" title="Space to toggle">PAUSE</button>
+      <button class="btn-ctrl" id="btn-skip" onclick="skipScenario()" title="Skip to next">SKIP &gt;</button>
+    </div>
+  </header>
+
+  <div class="terminal-wrap hidden" id="terminal-wrap">
+    <div class="terminal" id="terminal"></div>
+  </div>
+
+  <div class="timeline hidden" id="timeline"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// SCENARIO DATA
+// ═══════════════════════════════════════
+const scenarios = [
+  {
+    title: 'Strategic Risk Analysis',
+    subtitle: 'Cross-reference targets, plans, and capacity in seconds',
+    mcps: [],
+    steps: [
+      { type:'prompt', text:'Are we on track for Milestone 2?' },
+      { type:'reading', files:['product_targets.md','capacity.md','3 team plans','6 feature specs'] },
+      { type:'output', lines:[
+        {s:'header', t:'Milestone 2 Risk Assessment'},
+        {s:'dim', t:'Coverage: 6 of 8 must-have features have plans'},
+        {s:'', t:''},
+        {s:'table-h', t:'Feature            Spec    Resourced   Risk'},
+        {s:'table-h', t:'---------------------------------------------'},
+        {s:'table',   t:'Gear System        NONE    No          '},
+        {s:'bad',     t:'                                        HIGH'},
+        {s:'table',   t:'Ranked Mode        Stub    Partial     '},
+        {s:'warn',    t:'                                        MEDIUM'},
+        {s:'table',   t:'Battle Pass        Done    Yes         '},
+        {s:'ok',      t:'                                        Low'},
+        {s:'table',   t:'Combat Polish      Done    Yes         '},
+        {s:'ok',      t:'                                        Low'},
+        {s:'', t:''},
+        {s:'subheader', t:'Critical Risks'},
+        {s:'bad',    t:'1. Art capacity gap: need 8 sprint-slots, only 4 available'},
+        {s:'bad',    t:'2. Gear System has no spec and no engineer assigned'},
+        {s:'warn',   t:'3. 2 validation questions blocked until Gear ships'},
+        {s:'', t:''},
+        {s:'bold',   t:'Recommend: Scope Gear System this week, resolve art bottleneck before Sprint 5.'},
+      ]},
+    ],
+    hold: 4500,
+  },
+  {
+    title: 'Ad-hoc Skill Building',
+    subtitle: 'Describe what you need. Get a working skill.',
+    mcps: [],
+    steps: [
+      { type:'prompt', text:'I need a skill that generates a weekly status email for stakeholders.' },
+      { type:'thinking', text:'Building /weekly-status skill...' },
+      { type:'output', lines:[
+        {s:'ok', t:'Created: .claude/commands/weekly-status.md'},
+        {s:'', t:''},
+        {s:'subheader', t:'What it does'},
+        {s:'', t:'Reads all team plans + feature specs'},
+        {s:'', t:'Compiles per-team progress and blockers'},
+        {s:'', t:'Calculates milestone completion percentage'},
+        {s:'dim', t:'Outputs to generated/status/week_YYYY-MM-DD.md'},
+        {s:'', t:''},
+        {s:'subheader', t:'Reads'},
+        {s:'code', t:'  planning/teams/*_plan.md'},
+        {s:'code', t:'  planning/features/*.md'},
+        {s:'code', t:'  planning/capacity.md'},
+        {s:'', t:''},
+        {s:'subheader', t:'Rules'},
+        {s:'dim', t:'  Never modifies planning files'},
+        {s:'dim', t:'  Regenerates each run (idempotent)'},
+        {s:'dim', t:'  Groups by team, flags blockers in red'},
+        {s:'', t:''},
+        {s:'bold', t:'Ready. Run /weekly-status to try it.'},
+      ]},
+    ],
+    hold: 4000,
+  },
+  {
+    title: 'Notion Sync via MCP',
+    subtitle: 'Pull design docs, create specs, flag conflicts automatically',
+    mcps: ['notion'],
+    steps: [
+      { type:'prompt', text:'/spec-sync' },
+      { type:'mcp-connect', service:'Notion' },
+      { type:'reading', files:['feature_registry.md — 12 features found'] },
+      { type:'output', lines:[
+        {s:'subheader', t:'Syncing features...'},
+        {s:'', t:''},
+        {s:'ok',   t:'  Combat Overhaul  — Notion updated 2d ago  UPDATED'},
+        {s:'ok',   t:'  Gear System      — New page in Notion     SPEC CREATED'},
+        {s:'warn', t:'  Map System       — Conflict detected      QUEUED'},
+        {s:'dim',  t:'  Hero Abilities   — No changes             skipped'},
+        {s:'dim',  t:'  Basic Matchmaking — No changes            skipped'},
+        {s:'dim',  t:'  ... 7 more up to date'},
+        {s:'', t:''},
+        {s:'header', t:'Sync Report'},
+        {s:'', t:'1 spec updated from Notion content'},
+        {s:'', t:'1 new spec created (Gear System)'},
+        {s:'warn', t:'1 conflict: Map System'},
+        {s:'dim', t:'  Notion says "3 biomes" — spec says "5 biomes"'},
+        {s:'purple', t:'  Assigned to Jamie (Bravo Design Lead) as Q-024'},
+        {s:'', t:''},
+        {s:'bold', t:'Next: Run /designer-quiz for Jamie to resolve.'},
+      ]},
+    ],
+    hold: 4500,
+  },
+  {
+    title: 'Slack Status Post',
+    subtitle: 'Compile project intelligence and share it instantly',
+    mcps: ['slack'],
+    steps: [
+      { type:'prompt', text:'Post a milestone status update to #dev-updates' },
+      { type:'reading', files:['team plans','feature specs','capacity.md'] },
+      { type:'mcp-connect', service:'Slack' },
+      { type:'output', lines:[
+        {s:'purple', t:'Posted to #dev-updates:'},
+        {s:'', t:''},
+        {s:'bold', t:'  M2 Status  —  Week of Mar 23'},
+        {s:'dim',  t:'  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'},
+        {s:'',     t:'  Progress: 48% complete (4/8 features in progress)'},
+        {s:'', t:''},
+        {s:'ok',   t:'  Alpha:   On track  — Combat Polish 80%, Map System 60%'},
+        {s:'bad',  t:'  Bravo:   At risk   — Gear System blocked (no spec)'},
+        {s:'ok',   t:'  Charlie: On track  — Platform infra 90%'},
+        {s:'', t:''},
+        {s:'warn', t:'  Blockers: Art capacity, Gear System spec'},
+        {s:'dim',  t:'  Next: Gear System review Thu, Art planning Fri'},
+        {s:'', t:''},
+        {s:'dim',  t:'Message posted. 14 team members notified.'},
+      ]},
+    ],
+    hold: 4000,
+  },
+  {
+    title: 'Validation Progress',
+    subtitle: 'Track which hypotheses your features are actually proving',
+    mcps: [],
+    steps: [
+      { type:'prompt', text:'Which hypotheses are we actually proving this milestone?' },
+      { type:'reading', files:['validation_roadmap.md','feature specs','team plans'] },
+      { type:'output', lines:[
+        {s:'header', t:'Validation Progress — Milestone 2'},
+        {s:'', t:''},
+        {s:'subheader', t:'WH1: "Players want strategic depth in short sessions"'},
+        {s:'ok',      t:'  ✓ SHQ3: Async preferred 2:1 in playtest         ANSWERED'},
+        {s:'ok',      t:'  ✓ SHQ5: Matchmaking under 8 seconds              ANSWERED'},
+        {s:'bad',     t:'  ✗ SHQ10: Gear feels meaningful                   BLOCKED'},
+        {s:'dim',     t:'    Progress: 2/3 questions answered'},
+        {s:'', t:''},
+        {s:'subheader', t:'WH2: "Progression drives retention"'},
+        {s:'ok',      t:'  ✓ SHQ8:  Tutorial completion → 3x retention     ANSWERED'},
+        {s:'bad',     t:'  ✗ SHQ12: Gear collection beyond stats            BLOCKED'},
+        {s:'warn',    t:'  ~ SHQ14: Ranked mode compelling                  IN PROGRESS'},
+        {s:'neutral', t:'  · SHQ15: Battle pass drives returns              NOT STARTED'},
+        {s:'dim',     t:'    Progress: 1/4 questions answered'},
+        {s:'', t:''},
+        {s:'bad', t:'Risk: WH2 is under-validated. 2 questions blocked by Gear System.'},
+      ]},
+    ],
+    hold: 4500,
+  },
+  {
+    title: 'GitHub PR Context',
+    subtitle: 'Map engineering work back to feature specs automatically',
+    mcps: ['github'],
+    steps: [
+      { type:'prompt', text:'What shipped for Combat Overhaul this sprint?' },
+      { type:'mcp-connect', service:'GitHub' },
+      { type:'reading', files:['features/combat_overhaul.md','GitHub PRs'] },
+      { type:'output', lines:[
+        {s:'header', t:'Combat Overhaul — Sprint 4 Activity'},
+        {s:'', t:''},
+        {s:'table-h', t:'PR      Author   Status      Spec Section'},
+        {s:'table-h', t:'──────────────────────────────────────────'},
+        {s:'ok',      t:'#247    Jordan   Merged      Ability targeting'},
+        {s:'ok',      t:'#251    Alex     Merged      Damage calculation'},
+        {s:'warn',    t:'#259    Robin    In Review   Animations'},
+        {s:'dim',     t:'#262    Casey    Draft       Cooldown UI'},
+        {s:'', t:''},
+        {s:'',     t:'Implementation: ~60% of spec scope covered'},
+        {s:'dim',  t:'Remaining: Multiplayer sync, Unit balancing, VFX polish'},
+        {s:'',     t:'Estimate: 2 more sprints at current velocity'},
+        {s:'', t:''},
+        {s:'ok', t:'No blockers. On track for M2 delivery.'},
+      ]},
+    ],
+    hold: 4000,
+  },
+];
+
+// ═══════════════════════════════════════
+// ENGINE
+// ═══════════════════════════════════════
+let current = -1;
+let paused = false;
+let skipRequested = false;
+let running = false;
+let cancelToken = { cancelled: false };
+
+function sleep(ms) {
+  return new Promise(resolve => {
+    const check = () => {
+      if (cancelToken.cancelled) { resolve(); return; }
+      if (skipRequested) { resolve(); return; }
+      if (paused) { setTimeout(check, 50); return; }
+      resolve();
+    };
+    setTimeout(check, ms);
+  });
+}
+
+function scrollDown() {
+  const t = document.getElementById('terminal');
+  t.scrollTop = t.scrollHeight;
+}
+
+function addLine(html, cls) {
+  const t = document.getElementById('terminal');
+  const div = document.createElement('div');
+  div.className = `t-line ${cls||''}`;
+  div.innerHTML = html;
+  t.appendChild(div);
+  scrollDown();
+  return div;
+}
+
+async function typePrompt(text) {
+  const line = addLine(`<span class="h-green">&gt; </span><span id="typing"></span><span class="caret" id="caret"></span>`, 't-prompt');
+  const span = document.getElementById('typing');
+  for (let i = 0; i < text.length; i++) {
+    if (cancelToken.cancelled || skipRequested) { span.textContent = text; break; }
+    span.textContent += text[i];
+    scrollDown();
+    await sleep(35);
+  }
+  // Remove caret
+  const caret = document.getElementById('caret');
+  if (caret) caret.remove();
+  // Remove IDs to avoid conflicts
+  span.removeAttribute('id');
+  await sleep(400);
+}
+
+async function showReading(files) {
+  const parts = files.map(f => `<span class="file">${f}</span>`).join(', ');
+  const line = addLine(`<span class="spinner">◐</span> Reading ${parts}...`, 't-reading');
+  await sleep(1800);
+  line.querySelector('.spinner').textContent = '✓';
+  line.style.color = 'var(--green)';
+  await sleep(300);
+}
+
+async function showThinking(text) {
+  const line = addLine(`<span class="spinner">◐</span> ${text}`, 't-reading');
+  await sleep(1500);
+  line.querySelector('.spinner').textContent = '✓';
+  line.style.color = 'var(--green)';
+  await sleep(300);
+}
+
+async function showMCPConnect(service) {
+  const line = addLine(`<span class="spinner">◐</span> Connecting to <span class="h-purple">${service}</span>...`, 't-reading');
+  const badge = document.getElementById(`mcp-${service.toLowerCase()}`);
+  await sleep(800);
+  line.querySelector('.spinner').textContent = '✓';
+  line.innerHTML = `✓ Connected to <span class="h-purple">${service}</span> via MCP`;
+  line.style.color = 'var(--green)';
+  if (badge) badge.classList.add('active');
+  await sleep(400);
+}
+
+const styleMap = {
+  'header':   't-header',
+  'subheader':'t-subheader',
+  'table':    't-table',
+  'table-h':  't-table-header',
+  'ok':       't-status-ok',
+  'warn':     't-status-warn',
+  'bad':      't-status-bad',
+  'neutral':  't-status-neutral',
+  'dim':      't-dim',
+  'bold':     't-bold',
+  'code':     't-out',
+  'purple':   't-mcp',
+  '':         't-out',
+};
+
+async function showOutput(lines) {
+  for (const ln of lines) {
+    if (cancelToken.cancelled) return;
+    if (skipRequested) {
+      // Dump remaining lines immediately
+      for (const rem of lines.slice(lines.indexOf(ln))) {
+        const cls = styleMap[rem.s] || 't-out';
+        let html = rem.t;
+        if (rem.s === 'code') html = `<span class="t-code">${rem.t}</span>`;
+        addLine(html, cls);
+      }
+      return;
+    }
+    const cls = styleMap[ln.s] || 't-out';
+    let html = ln.t;
+    if (ln.s === 'code') html = `<span class="t-code">${ln.t}</span>`;
+    addLine(html, cls);
+    await sleep(ln.t === '' ? 40 : 90);
+  }
+}
+
+async function runScenario(index) {
+  const sc = scenarios[index];
+  current = index;
+  skipRequested = false;
+
+  // Update UI
+  document.getElementById('scenario-title').textContent = `${index+1}/${scenarios.length}  ${sc.title}`;
+  updateTimeline();
+
+  // Reset MCPs
+  document.querySelectorAll('.mcp-badge').forEach(b => b.classList.remove('active'));
+
+  // Clear terminal
+  document.getElementById('terminal').innerHTML = '';
+
+  // Scenario title in terminal
+  addLine(`<span class="h-dim">── ${sc.subtitle} ──</span>`, 't-dim');
+  await sleep(600);
+
+  // Play steps
+  for (const step of sc.steps) {
+    if (cancelToken.cancelled) return;
+    if (skipRequested) break;
+    if (step.type === 'prompt') await typePrompt(step.text);
+    else if (step.type === 'reading') await showReading(step.files);
+    else if (step.type === 'thinking') await showThinking(step.text);
+    else if (step.type === 'mcp-connect') await showMCPConnect(step.service);
+    else if (step.type === 'output') await showOutput(step.lines);
+  }
+
+  // Hold for reading
+  if (!cancelToken.cancelled && !skipRequested) {
+    await sleep(sc.hold || 3000);
+  }
+}
+
+async function runDemo() {
+  if (running) return;
+  running = true;
+  cancelToken = { cancelled: false };
+
+  // Hide intro, show main UI
+  const intro = document.getElementById('intro-screen');
+  intro.classList.add('fade-out');
+  setTimeout(() => intro.classList.add('hidden'), 800);
+
+  document.getElementById('outro-screen').classList.add('hidden');
+  document.getElementById('main-header').classList.remove('hidden');
+  document.getElementById('terminal-wrap').classList.remove('hidden');
+  document.getElementById('timeline').classList.remove('hidden');
+
+  buildTimeline();
+
+  // Run all scenarios
+  for (let i = 0; i < scenarios.length; i++) {
+    if (cancelToken.cancelled) break;
+    await runScenario(i);
+    if (cancelToken.cancelled) break;
+
+    // Transition pause between scenarios
+    if (i < scenarios.length - 1 && !cancelToken.cancelled) {
+      await sleep(1500);
+    }
+  }
+
+  if (!cancelToken.cancelled) {
+    // Show outro
+    await sleep(1000);
+    document.getElementById('main-header').classList.add('hidden');
+    document.getElementById('terminal-wrap').classList.add('hidden');
+    document.getElementById('timeline').classList.add('hidden');
+    const outro = document.getElementById('outro-screen');
+    outro.classList.remove('hidden');
+    outro.classList.remove('fade-out');
+  }
+
+  running = false;
+}
+
+async function jumpToScenario(index) {
+  cancelToken.cancelled = true;
+  await sleep(100);
+  cancelToken = { cancelled: false };
+  running = false;
+
+  document.getElementById('intro-screen').classList.add('hidden');
+  document.getElementById('outro-screen').classList.add('hidden');
+  document.getElementById('main-header').classList.remove('hidden');
+  document.getElementById('terminal-wrap').classList.remove('hidden');
+  document.getElementById('timeline').classList.remove('hidden');
+
+  running = true;
+  for (let i = index; i < scenarios.length; i++) {
+    if (cancelToken.cancelled) break;
+    await runScenario(i);
+    if (cancelToken.cancelled) break;
+    if (i < scenarios.length - 1) await sleep(1500);
+  }
+
+  if (!cancelToken.cancelled) {
+    await sleep(1000);
+    document.getElementById('main-header').classList.add('hidden');
+    document.getElementById('terminal-wrap').classList.add('hidden');
+    document.getElementById('timeline').classList.add('hidden');
+    const outro = document.getElementById('outro-screen');
+    outro.classList.remove('hidden');
+    outro.classList.remove('fade-out');
+  }
+  running = false;
+}
+
+// ═══════════════════════════════════════
+// TIMELINE
+// ═══════════════════════════════════════
+function buildTimeline() {
+  const tl = document.getElementById('timeline');
+  tl.innerHTML = '';
+  scenarios.forEach((sc, i) => {
+    const dot = document.createElement('button');
+    dot.className = 'tl-dot';
+    dot.title = sc.title;
+    dot.onclick = () => jumpToScenario(i);
+    tl.appendChild(dot);
+  });
+  const label = document.createElement('span');
+  label.className = 'tl-label';
+  label.id = 'tl-label';
+  label.textContent = '';
+  tl.appendChild(label);
+}
+
+function updateTimeline() {
+  const dots = document.querySelectorAll('.tl-dot');
+  dots.forEach((d, i) => {
+    d.classList.remove('active', 'done');
+    if (i === current) d.classList.add('active');
+    else if (i < current) d.classList.add('done');
+  });
+  const label = document.getElementById('tl-label');
+  if (label && scenarios[current]) label.textContent = scenarios[current].title;
+}
+
+// ═══════════════════════════════════════
+// CONTROLS
+// ═══════════════════════════════════════
+function togglePause() {
+  paused = !paused;
+  document.getElementById('btn-pause').textContent = paused ? 'PLAY' : 'PAUSE';
+  document.getElementById('btn-pause').classList.toggle('active', paused);
+}
+
+function skipScenario() {
+  skipRequested = true;
+}
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (!running && document.getElementById('outro-screen').classList.contains('hidden') === false) {
+      // Replay from outro
+      document.getElementById('outro-screen').classList.add('hidden');
+      const intro = document.getElementById('intro-screen');
+      intro.classList.remove('hidden');
+      intro.classList.remove('fade-out');
+      return;
+    }
+    if (!running) {
+      runDemo();
+    } else {
+      togglePause();
+    }
+  }
+  if (e.code === 'ArrowRight') skipScenario();
+  if (e.code === 'ArrowLeft' && current > 0) jumpToScenario(current - 1);
+  if (e.key >= '1' && e.key <= '6') jumpToScenario(parseInt(e.key) - 1);
+});
+
+// Click to start from intro
+document.getElementById('intro-screen').addEventListener('click', () => {
+  if (!running) runDemo();
+});
+
+// Click to restart from outro
+document.getElementById('outro-screen').addEventListener('click', () => {
+  document.getElementById('outro-screen').classList.add('hidden');
+  jumpToScenario(0);
+});
+</script>
+</body>
+</html>
