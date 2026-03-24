@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Brain Forge</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0d1117;
+  --bg-surface: #161b22;
+  --bg-input: #0d1117;
+  --border: #30363d;
+  --text: #c9d1d9;
+  --text-dim: #8b949e;
+  --accent: #00ff88;
+  --accent-dim: #00cc6a;
+  --accent-glow: rgba(0,255,136,0.15);
+  --blue: #58a6ff;
+  --orange: #f0883e;
+  --red: #ff7b72;
+  --purple: #bc8cff;
+  --font-mono: 'Courier New', Courier, monospace;
+}
+
+html { height: 100%; }
+
+body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.6;
+  overflow: hidden;
+}
+
+/* Scanline */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  pointer-events: none;
+  z-index: 9999;
+}
+
+#app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── HEADER ── */
+header {
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+}
+
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.header-left { display: flex; align-items: center; gap: 16px; }
+
+.logo {
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  text-shadow: 0 0 10px rgba(0,255,136,0.3);
+}
+
+.header-right { display: flex; align-items: center; gap: 12px; }
+
+.mission-label {
+  color: var(--text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Music controls */
+.music-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.3s;
+}
+.music-btn:hover { border-color: var(--accent); color: var(--accent); }
+.music-btn.playing { border-color: var(--accent); color: var(--accent); }
+
+.eq-bars {
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 12px;
+}
+.eq-bars span {
+  width: 2px;
+  background: var(--accent);
+  height: 3px;
+  transition: height 0.1s;
+}
+.eq-bars.active span { animation: eqPulse 0.6s ease-in-out infinite; }
+.eq-bars span:nth-child(1) { animation-delay: 0s; }
+.eq-bars span:nth-child(2) { animation-delay: 0.15s; }
+.eq-bars span:nth-child(3) { animation-delay: 0.3s; }
+.eq-bars span:nth-child(4) { animation-delay: 0.1s; }
+.eq-bars span:nth-child(5) { animation-delay: 0.25s; }
+
+@keyframes eqPulse {
+  0%, 100% { height: 3px; }
+  50% { height: 12px; }
+}
+
+/* Progress bar */
+.progress-track {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  border-radius: 2px;
+  transition: width 0.6s ease;
+  box-shadow: 0 0 8px rgba(0,255,136,0.4);
+}
+
+/* ── BOOT SCREEN ── */
+#boot-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.boot-title {
+  font-size: 32px;
+  color: var(--accent);
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  text-shadow: 0 0 20px rgba(0,255,136,0.4);
+  margin-bottom: 6px;
+}
+.boot-subtitle {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin-bottom: 40px;
+  letter-spacing: 2px;
+}
+.boot-art {
+  margin-bottom: 24px;
+}
+.boot-art canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  width: 288px;
+  height: 192px;
+}
+.boot-log {
+  text-align: left;
+  margin-bottom: 28px;
+  min-height: 110px;
+  width: 380px;
+}
+.boot-line {
+  opacity: 0;
+  animation: bootFade 0.3s forwards;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.boot-line .ok { color: var(--accent); }
+.boot-line .warn { color: var(--orange); }
+
+@keyframes bootFade { to { opacity: 1; } }
+
+.btn-start {
+  opacity: 0;
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 12px 40px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  animation: bootFade 0.5s 2.2s forwards;
+}
+.btn-start:hover {
+  background: var(--accent);
+  color: var(--bg);
+  box-shadow: 0 0 20px rgba(0,255,136,0.3);
+}
+
+/* ── GAME SCREEN ── */
+#game-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── MAIN (scrollable) ── */
+main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 24px 40px;
+}
+
+main::-webkit-scrollbar { width: 6px; }
+main::-webkit-scrollbar-track { background: var(--bg); }
+main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.mission-inner {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+/* ── MISSION ── */
+.mission { display: none; }
+.mission.active { display: block; }
+
+/* Mission art */
+.mission-art {
+  text-align: center;
+  margin-bottom: 16px;
+}
+.mission-art canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  width: 240px;
+  height: 120px;
+}
+
+.mission-number {
+  color: var(--accent);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  margin-bottom: 4px;
+}
+.mission-title {
+  font-size: 22px;
+  color: var(--text);
+  font-weight: bold;
+  margin-bottom: 8px;
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 6px;
+  display: inline-block;
+}
+.mission-flavor {
+  color: var(--text-dim);
+  font-style: italic;
+  margin-bottom: 20px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+  font-size: 13px;
+}
+.mission-body { margin-bottom: 24px; }
+
+/* Inputs */
+.input-section { margin-bottom: 20px; }
+.input-label {
+  display: block;
+  color: var(--blue);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+.input-hint {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+textarea, input[type="text"], input[type="number"] {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 10px;
+  border-radius: 4px;
+  outline: none;
+  transition: border-color 0.3s;
+  resize: vertical;
+}
+textarea:focus, input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+textarea { min-height: 110px; }
+textarea.large { min-height: 180px; }
+
+/* Divider */
+.or-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 16px 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+.or-divider::before, .or-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Drop zone */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 6px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  position: relative;
+}
+.drop-zone:hover, .drop-zone.dragover {
+  border-color: var(--accent);
+  background: rgba(0,255,136,0.03);
+}
+.drop-zone-text { color: var(--text-dim); font-size: 12px; }
+.drop-zone-text strong { color: var(--accent); }
+.drop-zone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.attached-files { margin-top: 8px; }
+.attached-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-top: 4px;
+  font-size: 11px;
+}
+.attached-file .filename { color: var(--blue); }
+.attached-file .filesize { color: var(--text-dim); }
+.attached-file .remove-btn {
+  background: none;
+  border: none;
+  color: var(--red);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* Insight box */
+.insight-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--purple);
+  padding: 14px;
+  margin-top: 20px;
+  border-radius: 0 4px 4px 0;
+}
+.insight-label {
+  color: var(--purple);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 4px;
+}
+.insight-text {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.insight-text code {
+  color: var(--accent);
+  background: rgba(0,255,136,0.08);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* ── FORGE (Mission 6) ── */
+.forge-step {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.forge-step-header {
+  color: var(--orange);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+.forge-preview {
+  background: #000;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 14px;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  max-height: 350px;
+  overflow-y: auto;
+  line-height: 1.5;
+}
+
+.check-list { list-style: none; }
+.check-list li { margin-bottom: 4px; }
+.check-list label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+}
+.check-list input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+}
+
+/* ── BRIEFING ROOM ── */
+.summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.summary-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px;
+}
+.summary-card.filled { border-color: var(--accent); }
+.summary-card.empty { border-color: var(--orange); opacity: 0.6; }
+.summary-card-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 3px;
+}
+.summary-card.filled .summary-card-title { color: var(--accent); }
+.summary-card.empty .summary-card-title { color: var(--orange); }
+.summary-card-detail { color: var(--text-dim); font-size: 11px; }
+
+.btn-export {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  padding: 12px 28px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-radius: 4px;
+  transition: all 0.3s;
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+}
+.btn-export:hover {
+  box-shadow: 0 0 20px rgba(0,255,136,0.4);
+  transform: translateY(-1px);
+}
+
+.export-instructions {
+  background: var(--bg-surface);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 16px;
+  margin-top: 16px;
+  display: none;
+}
+.export-instructions.visible { display: block; }
+.export-instructions h3 { color: var(--accent); font-size: 13px; margin-bottom: 10px; }
+.export-instructions ol { padding-left: 18px; color: var(--text-dim); font-size: 12px; }
+.export-instructions ol li { margin-bottom: 6px; }
+.export-instructions code {
+  color: var(--accent);
+  background: rgba(0,255,136,0.08);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 12px 16px;
+  z-index: 1000;
+  transform: translateX(120%);
+  transition: transform 0.4s ease;
+  box-shadow: 0 0 20px rgba(0,255,136,0.2);
+  max-width: 300px;
+}
+.toast.show { transform: translateX(0); }
+.toast-title { color: var(--accent); font-size: 10px; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 3px; }
+.toast-message { color: var(--text); font-size: 12px; }
+
+/* ── FOOTER ── */
+footer {
+  padding: 12px 24px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+}
+.nav-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 860px;
+  margin: 0 auto;
+}
+.btn-nav {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 20px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  border-radius: 4px;
+}
+.btn-nav:hover { border-color: var(--accent); color: var(--accent); }
+.btn-nav:disabled { opacity: 0.3; cursor: default; }
+.btn-nav:disabled:hover { border-color: var(--border); color: var(--text); }
+.btn-nav.primary { border-color: var(--accent); color: var(--accent); }
+.btn-nav.primary:hover { background: var(--accent); color: var(--bg); }
+
+.nav-dots { display: flex; gap: 6px; }
+.nav-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: all 0.3s;
+  cursor: pointer;
+  border: none;
+}
+.nav-dot.active { background: var(--accent); box-shadow: 0 0 6px rgba(0,255,136,0.4); }
+.nav-dot.completed { background: var(--accent-dim); }
+
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- BOOT SCREEN -->
+  <div id="boot-screen">
+    <div class="boot-title">The Brain Forge</div>
+    <div class="boot-subtitle">Project Brain Onboarding System</div>
+    <div class="boot-art"><canvas id="art-boot" width="48" height="32"></canvas></div>
+    <div class="boot-log" id="boot-log"></div>
+    <button class="btn-start" id="btn-start" onclick="startGame()">Initialize Brain</button>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="game-screen" class="hidden">
+    <header>
+      <div class="header-row">
+        <div class="header-left">
+          <div class="logo">The Brain Forge</div>
+        </div>
+        <div class="header-right">
+          <div class="mission-label" id="header-mission-label">Mission 1 / 7</div>
+          <button class="music-btn" id="music-btn" onclick="toggleMusic()" title="Toggle Music">
+            <div class="eq-bars" id="eq-bars">
+              <span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <span id="music-label">MUSIC</span>
+          </button>
+        </div>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill" style="width:14.28%"></div>
+      </div>
+    </header>
+
+    <main id="mission-container">
+
+      <!-- MISSION 1 -->
+      <div class="mission active" id="mission-1"><div class="mission-inner">
+        <div class="mission-art"><canvas id="art-m1" width="48" height="24"></canvas></div>
+        <div class="mission-number">Mission 1</div>
+        <div class="mission-title">Boot Sequence</div>
+        <div class="mission-flavor">"Initializing project brain... identity required."</div>
+        <div class="mission-body">
+          <div class="input-section">
+            <label class="input-label">Project Name</label>
+            <div class="input-hint">What's this project called?</div>
+            <input type="text" id="m1-project-name" placeholder="e.g. Starfall Arena" oninput="saveField(this)">
+          </div>
+          <div class="input-section">
+            <label class="input-label">Project Mission</label>
+            <div class="input-hint">What is this project trying to achieve? Describe it naturally.</div>
+            <textarea id="m1-project-mission" placeholder="e.g. We're building a mobile PvP arena battler with deep hero customization. The core bet is that players want strategic depth in short sessions..." oninput="saveField(this)"></textarea>
+          </div>
+          <div class="input-section">
+            <label class="input-label">Sprint Cadence</label>
+            <div class="input-hint">How long are your sprints?</div>
+            <input type="text" id="m1-sprint-cadence" placeholder="e.g. 2-week sprints" oninput="saveField(this)">
+          </div>
+          <div class="input-section">
+            <label class="input-label">Additional Context</label>
+            <div class="input-hint">Tech stack, stage of development, prior milestones completed...</div>
+            <textarea id="m1-context" placeholder="e.g. We're in pre-production, using Unreal Engine 5. Just finished a vertical slice in December..." oninput="saveField(this)"></textarea>
+          </div>
+        </div>
+        <div class="insight-box">
+          <div class="insight-label">Brain Insight</div>
+          <div class="insight-text">This info populates <code>project-charter.md</code> -- the first file any AI reads when entering your project brain. Think of it as your project's identity card.</div>
+        </div>
+      </div></div>
+
+      <!-- MISSION 2 -->
+      <div class="mission" id="mission-2"><div class="mission-inner">
+        <div class="mission-art"><canvas id="art-m2" width="48" height="24"></canvas></div>
+        <div class="mission-number">Mission 2</div>
+        <div class="mission-title">The Oracle's Chamber</div>
+        <div class="mission-flavor">"The Oracle sees the future... but only if you know the right questions."</div>
+        <div class="mission-body">
+          <div class="input-section">
+            <label class="input-label">Your Big Bets</label>
+            <div class="input-hint">What core hypotheses is your product built on? What do you believe that, if wrong, changes everything?</div>
+            <textarea class="large" id="m2-hypotheses" placeholder="e.g. We believe that:&#10;- Players want strategic depth in short mobile sessions&#10;- Hero customization drives long-term retention more than content updates&#10;- Async PvP can feel as satisfying as real-time PvP" oninput="saveField(this)"></textarea>
+          </div>
+          <div class="input-section">
+            <label class="input-label">Key Questions to Answer</label>
+            <div class="input-hint">What specific questions must you answer to prove or disprove your bets?</div>
+            <textarea class="large" id="m2-questions" placeholder="e.g.&#10;- Can we make matches feel strategic in under 3 minutes?&#10;- Do players use hero customization or just pick the strongest build?&#10;- Is async PvP distinguishable from bots?" oninput="saveField(this)"></textarea>
+          </div>
+          <div class="or-divider">or attach existing docs</div>
+          <div class="drop-zone" id="drop-m2">
+            <div class="drop-zone-text">Drop a file here or <strong>click to browse</strong><br>Validation roadmap, strategy doc, hypothesis doc</div>
+            <input type="file" multiple onchange="handleFiles(this,'m2')" accept=".md,.txt,.pdf,.docx,.csv,.xlsx">
+          </div>
+          <div class="attached-files" id="files-m2"></div>
+        </div>
+        <div class="insight-box">
+          <div class="insight-label">Brain Insight</div>
+          <div class="insight-text">This creates <code>validation_roadmap.md</code> -- the hierarchy of Winning Hypotheses, BHQs, and SHQs. Every feature spec traces back to these questions.</div>
+        </div>
+      </div></div>
+
+      <!-- MISSION 3 -->
+      <div class="mission" id="mission-3"><div class="mission-inner">
+        <div class="mission-art"><canvas id="art-m3" width="48" height="24"></canvas></div>
+        <div class="mission-number">Mission 3</div>
+        <div class="mission-title">The War Table</div>
+        <div class="mission-flavor">"Every campaign needs a battle plan. Mark your targets."</div>
+        <div class="mission-body">
+          <div class="input-section">
+            <label class="input-label">Milestones & Targets</label>
+            <div class="input-hint">Describe upcoming milestones -- names, dates, goals, must-ship features. Be as rough or detailed as you want.</div>
+            <textarea class="large" id="m3-milestones" placeholder="e.g.&#10;Milestone 1: &quot;Core Loop&quot; - ends June 2026 (6 sprints)&#10;  Goal: Prove the core combat loop is fun&#10;  Must-haves: Combat system, Hero abilities, Basic matchmaking&#10;  Nice-to-haves: Spectator mode, Replays&#10;&#10;Milestone 2: &quot;Meta & Progression&quot; - ends Oct 2026 (8 sprints)&#10;  Goal: Prove progression keeps players coming back&#10;  Must-haves: Gear system, Ranked mode, Battle pass" oninput="saveField(this)"></textarea>
+          </div>
+          <div class="input-section">
+            <label class="input-label">Success Criteria</label>
+            <div class="input-hint">How will you know each milestone succeeded? Observable, measurable outcomes.</div>
+            <textarea id="m3-success" placeholder="e.g. M1: Playtesters complete 5+ matches without prompting. 70% say combat felt good." oninput="saveField(this)"></textarea>
+          </div>
+          <div class="or-divider">or attach existing docs</div>
+          <div class="drop-zone" id="drop-m3">
+            <div class="drop-zone-text">Drop a file here or <strong>click to browse</strong><br>Roadmap, milestone plan, feature list, Gantt chart</div>
+            <input type="file" multiple onchange="handleFiles(this,'m3')" accept=".md,.txt,.pdf,.docx,.csv,.xlsx">
+          </div>
+          <div class="attached-files" id="files-m3"></div>
+        </div>
+        <div class="insight-box">
+          <div class="insight-label">Brain Insight</div>
+          <div class="insight-text">This populates <code>product_targets.md</code> -- the stable benchmark everything is measured against. The core tension: <code>targets</code> vs <code>plans</code> vs <code>capacity</code>.</div>
+        </div>
+      </div></div>
+
+      <!-- MISSION 4 -->
+      <div class="mission" id="mission-4"><div class="mission-inner">
+        <div class="mission-art"><canvas id="art-m4" width="48" height="24"></canvas></div>
+        <div class="mission-number">Mission 4</div>
+        <div class="mission-title">The Guild Hall</div>
+        <div class="mission-flavor">"Assemble your party before venturing forth."</div>
+        <div class="mission-body">
+          <div class="input-section">
+            <label class="input-label">Teams & People</label>
+            <div class="input-hint">Describe your team structure -- teams/pods, leads, disciplines, people, allocation percentages.</div>
+            <textarea class="large" id="m4-teams" placeholder="e.g.&#10;Team Alpha - Core Systems&#10;  Lead: Sarah Chen&#10;  Design Lead: Marcus Webb, Eng Lead: Jordan Park&#10;  Engineers: Alex (100%), Casey (50% shared with Bravo)&#10;  Artists: Robin (100%)&#10;&#10;Team Bravo - Metagame&#10;  Lead: Jamie Torres&#10;  Engineers: Sam (100%), Pat (100%)&#10;  Artists: none yet (need to hire)" oninput="saveField(this)"></textarea>
+          </div>
+          <div class="or-divider">or attach existing docs</div>
+          <div class="drop-zone" id="drop-m4">
+            <div class="drop-zone-text">Drop a file here or <strong>click to browse</strong><br>Org chart, team spreadsheet, staffing plan</div>
+            <input type="file" multiple onchange="handleFiles(this,'m4')" accept=".md,.txt,.pdf,.docx,.csv,.xlsx">
+          </div>
+          <div class="attached-files" id="files-m4"></div>
+        </div>
+        <div class="insight-box">
+          <div class="insight-label">Brain Insight</div>
+          <div class="insight-text">This becomes <code>capacity.md</code> -- the single source of truth for staffing. Every skill reads this to determine ownership and check resource availability.</div>
+        </div>
+      </div></div>
+
+      <!-- MISSION 5 -->
+      <div class="mission" id="mission-5"><div class="mission-inner">
+        <div class="mission-art"><canvas id="art-m5" width="48" height="24"></canvas></div>
+        <div class="mission-number">Mission 5</div>
+        <div class="mission-title">The Armory</div>
+        <div class="mission-flavor">"Forge the tools of creation. Name every weapon in your arsenal."</div>
+        <div class="mission-body">
+          <div class="input-section">
+            <label class="input-label">Features</label>
+            <div class="input-hint">List features your project is building -- team, milestone, brief description for each.</div>
+            <textarea class="large" id="m5-features" placeholder="e.g.&#10;Combat System - Team Alpha - M1 - core battle mechanics&#10;Hero Abilities - Team Alpha - M1 - 3 heroes with unique kits&#10;Gear System - Team Bravo - M2 - equippable items, stat mods&#10;Ranked Mode - Team Bravo - M2 - competitive ladder" oninput="saveField(this)"></textarea>
+          </div>
+          <div class="input-section">
+            <label class="input-label">External Doc Links (Optional)</label>
+            <div class="input-hint">If design docs live in Notion/Confluence, paste links or IDs here.</div>
+            <textarea id="m5-external-links" placeholder="e.g. Combat System: https://notion.so/abc123" oninput="saveField(this)"></textarea>
+          </div>
+          <div class="or-divider">or attach existing docs</div>
+          <div class="drop-zone" id="drop-m5">
+            <div class="drop-zone-text">Drop a file here or <strong>click to browse</strong><br>Feature backlog, spec index, Jira export</div>
+            <input type="file" multiple onchange="handleFiles(this,'m5')" accept=".md,.txt,.pdf,.docx,.csv,.xlsx">
+          </div>
+          <div class="attached-files" id="files-m5"></div>
+        </div>
+        <div class="insight-box">
+          <div class="insight-label">Brain Insight</div>
+          <div class="insight-text">This populates <code>feature_registry.md</code> -- the master list mapping features to teams and milestones. <code>/spec-sync</code> reads this to know which features need specs.</div>
+        </div>
+      </div></div>
+
+      <!-- MISSION 6 -->
+      <div class="mission" id="mission-6"><div class="mission-inner">
+        <div class="mission-art"><canvas id="art-m6" width="48" height="24"></canvas></div>
+        <div class="mission-number">Mission 6</div>
+        <div class="mission-title">The Forge</div>
+        <div class="mission-flavor">"Now you learn to build the tools themselves."</div>
+        <div class="mission-body">
+          <p style="color:var(--text);margin-bottom:16px;font-size:13px;">The brain ships with skills like <code>/spec-sync</code> -- but the real power is building your own. Let's forge a <strong>/roadmap</strong> skill together.</p>
+          <div class="forge-step">
+            <div class="forge-step-header">Step 1: Define the Problem</div>
+            <p style="color:var(--text-dim);margin-bottom:8px;font-size:12px;">What should your roadmap skill do? Edit to match your needs.</p>
+            <textarea id="m6-problem" oninput="saveField(this);updateForgePreview()">Generate a consolidated project roadmap by reading all team plans and feature specs, organized by milestone, showing status, dependencies, and resource allocation.</textarea>
+          </div>
+          <div class="forge-step">
+            <div class="forge-step-header">Step 2: What Files Should It Read?</div>
+            <p style="color:var(--text-dim);margin-bottom:8px;font-size:12px;">Select which brain files your skill needs.</p>
+            <ul class="check-list" id="m6-reads">
+              <li><label><input type="checkbox" checked value="planning/product_targets.md" onchange="updateForgePreview()"> <code>product_targets.md</code> - Milestone goals</label></li>
+              <li><label><input type="checkbox" checked value="planning/capacity.md" onchange="updateForgePreview()"> <code>capacity.md</code> - Team staffing</label></li>
+              <li><label><input type="checkbox" checked value="planning/teams/*_plan.md" onchange="updateForgePreview()"> <code>teams/*_plan.md</code> - Team plans</label></li>
+              <li><label><input type="checkbox" checked value="planning/features/*.md" onchange="updateForgePreview()"> <code>features/*.md</code> - Feature specs</label></li>
+              <li><label><input type="checkbox" value="planning/validation_roadmap.md" onchange="updateForgePreview()"> <code>validation_roadmap.md</code> - Hypotheses</label></li>
+              <li><label><input type="checkbox" value="planning/feature_registry.md" onchange="updateForgePreview()"> <code>feature_registry.md</code> - Feature mapping</label></li>
+            </ul>
+          </div>
+          <div class="forge-step">
+            <div class="forge-step-header">Step 3: What Should It Output?</div>
+            <p style="color:var(--text-dim);margin-bottom:8px;font-size:12px;">Skills write to <code>generated/</code> (disposable) -- never auto-modify <code>planning/</code> files.</p>
+            <input type="text" id="m6-output" value="generated/roadmap.md" oninput="saveField(this);updateForgePreview()">
+          </div>
+          <div class="forge-step">
+            <div class="forge-step-header">Step 4: Custom Instructions</div>
+            <textarea id="m6-custom" placeholder="e.g. Always highlight resource conflicts. Flag must-have features without specs." oninput="saveField(this);updateForgePreview()"></textarea>
+          </div>
+          <div class="forge-step">
+            <div class="forge-step-header">Live Preview: Your Skill File</div>
+            <p style="color:var(--text-dim);margin-bottom:8px;font-size:12px;">This is the actual <code>.claude/commands/roadmap.md</code> that will be created.</p>
+            <div class="forge-preview" id="forge-preview"></div>
+          </div>
+        </div>
+        <div class="insight-box">
+          <div class="insight-label">Brain Insight</div>
+          <div class="insight-text">You just built a Claude Code skill. Skills are markdown files in <code>.claude/commands/</code> following a pattern: <strong>Read, Analyze, Output, Summarize</strong>. Run them with <code>/skillname</code>.</div>
+        </div>
+      </div></div>
+
+      <!-- MISSION 7 -->
+      <div class="mission" id="mission-7"><div class="mission-inner">
+        <div class="mission-art"><canvas id="art-m7" width="48" height="24"></canvas></div>
+        <div class="mission-number">Mission 7</div>
+        <div class="mission-title">The Briefing Room</div>
+        <div class="mission-flavor">"Mission complete. Review your intel and deploy."</div>
+        <div class="mission-body">
+          <p style="color:var(--text);margin-bottom:16px;font-size:13px;">Here's everything you've forged. Export creates a JSON with all your answers, plus a <code>/onboard-apply</code> command for Claude Code.</p>
+          <div class="summary-grid" id="summary-grid"></div>
+          <button class="btn-export" onclick="exportBrain()">Export Brain Data</button>
+          <div class="export-instructions" id="export-instructions">
+            <h3>Deployment Instructions</h3>
+            <ol>
+              <li>Move <code>brain-forge-export.json</code> to <code>onboarding/context/brain-forge-export.json</code></li>
+              <li>The <code>/onboard-apply</code> command should already be at <code>.claude/commands/onboard-apply.md</code></li>
+              <li>Open Claude Code in your brain template repo</li>
+              <li>Run <code>/onboard-apply</code></li>
+              <li>Claude reads your data, asks clarifying questions, and populates all brain files</li>
+            </ol>
+          </div>
+        </div>
+        <div class="insight-box">
+          <div class="insight-label">Brain Insight</div>
+          <div class="insight-text"><code>/onboard-apply</code> is itself a skill -- just like the <code>/roadmap</code> you built in Mission 6. You describe what you want in plain language, Claude handles the formatting.</div>
+        </div>
+      </div></div>
+
+    </main>
+
+    <footer>
+      <div class="nav-row">
+        <button class="btn-nav" id="btn-prev" onclick="prevMission()" disabled>&lt; Previous</button>
+        <div class="nav-dots" id="nav-dots"></div>
+        <button class="btn-nav primary" id="btn-next" onclick="nextMission()">Next Mission &gt;</button>
+      </div>
+    </footer>
+  </div>
+
+  <div class="toast" id="toast">
+    <div class="toast-title" id="toast-title"></div>
+    <div class="toast-message" id="toast-message"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// PIXEL ART ENGINE
+// ═══════════════════════════════════════
+const P = { // palette
+  _:'transparent', g:'#00ff88', d:'#00cc6a', k:'#003d20',
+  b:'#58a6ff', o:'#f0883e', p:'#bc8cff', w:'#c9d1d9', x:'#30363d',
+  G:'rgba(0,255,136,0.25)', B:'rgba(88,166,255,0.25)', O:'rgba(240,136,62,0.25)',
+  P:'rgba(188,140,255,0.25)'
+};
+
+function px(ctx, x, y, c, w, h) {
+  ctx.fillStyle = c;
+  ctx.fillRect(x, y, w||1, h||1);
+}
+
+function drawBootArt(ctx) {
+  const g=P.g, d=P.d, k=P.k, G=P.G, b=P.b;
+  // Circuit chip body
+  for(let x=16;x<32;x++) for(let y=8;y<24;y++) px(ctx,x,y,k);
+  for(let x=17;x<31;x++) { px(ctx,x,8,g); px(ctx,x,23,g); }
+  for(let y=8;y<24;y++) { px(ctx,16,y,g); px(ctx,31,y,g); }
+  // Inner glow
+  for(let x=19;x<29;x++) for(let y=11;y<21;y++) px(ctx,x,y,G);
+  // Pins top/bottom
+  for(let i=0;i<4;i++) { px(ctx,19+i*3,6,d,1,2); px(ctx,19+i*3,24,d,1,2); }
+  // Pins left/right
+  for(let i=0;i<3;i++) { px(ctx,14,11+i*4,d,2,1); px(ctx,32,11+i*4,d,2,1); }
+  // Trace lines
+  for(let x=2;x<14;x++) { px(ctx,x,11,d); px(ctx,x,15,d); px(ctx,x,19,d); }
+  for(let x=34;x<46;x++) { px(ctx,x,11,d); px(ctx,x,15,d); px(ctx,x,19,d); }
+  // Dots at ends
+  [11,15,19].forEach(y=>{px(ctx,1,y,g);px(ctx,46,y,g);});
+  // AI text
+  // A: 22,14-18 / 23,13+17 / 24,14-18 / 25,15
+  px(ctx,22,14,g,1,5);px(ctx,25,14,g,1,5);px(ctx,23,13,g,2,1);px(ctx,23,16,g,2,1);
+  // I
+  px(ctx,27,13,g,2,1);px(ctx,27,18,g,2,1);px(ctx,28,14,g,1,4);
+}
+
+function drawOracleArt(ctx) {
+  const g=P.g, d=P.d, p=P.p, P_=P.P, b=P.b;
+  // Crystal ball
+  for(let a=0;a<Math.PI*2;a+=0.08){
+    const r=8, cx=24, cy=10;
+    px(ctx,Math.round(cx+Math.cos(a)*r),Math.round(cy+Math.sin(a)*r),p);
+  }
+  // Inner glow
+  for(let a=0;a<Math.PI*2;a+=0.15){
+    const r=5, cx=24, cy=10;
+    px(ctx,Math.round(cx+Math.cos(a)*r),Math.round(cy+Math.sin(a)*r),P_);
+  }
+  // Eye in center
+  px(ctx,23,9,p,3,1); px(ctx,24,10,g);
+  // Stand
+  px(ctx,21,19,d,7,1); px(ctx,22,20,d,5,1); px(ctx,20,21,d,9,1);
+  // Sparkles
+  [[8,4],[38,6],[12,18],[36,16],[5,14],[42,10]].forEach(([x,y])=>{
+    px(ctx,x,y,p); px(ctx,x-1,y,d); px(ctx,x+1,y,d); px(ctx,x,y-1,d); px(ctx,x,y+1,d);
+  });
+  // Rays
+  for(let i=0;i<6;i++){
+    const a=Math.PI*2/6*i-Math.PI/2, cx=24, cy=10;
+    for(let r=10;r<13;r++) px(ctx,Math.round(cx+Math.cos(a)*r),Math.round(cy+Math.sin(a)*r),d);
+  }
+}
+
+function drawWarTableArt(ctx) {
+  const g=P.g, d=P.d, o=P.o, b=P.b, x_=P.x;
+  // Grid
+  for(let x=4;x<44;x+=4) for(let y=2;y<22;y++) px(ctx,x,y,x_);
+  for(let y=2;y<22;y+=4) for(let x=4;x<44;x++) px(ctx,x,y,x_);
+  // Territory fills
+  for(let x=5;x<16;x++) for(let y=3;y<10;y++) px(ctx,x,y,P.G);
+  for(let x=17;x<32;x++) for(let y=7;y<18;y++) px(ctx,x,y,P.B);
+  for(let x=33;x<44;x++) for(let y=11;y<22;y++) px(ctx,x,y,P.O);
+  // Flag pins
+  [[10,4,g],[24,10,b],[38,14,o]].forEach(([fx,fy,c])=>{
+    px(ctx,fx,fy,c);px(ctx,fx,fy+1,c);px(ctx,fx,fy+2,c);px(ctx,fx,fy+3,c);
+    px(ctx,fx+1,fy,c);px(ctx,fx+2,fy,c);px(ctx,fx+1,fy+1,c);
+  });
+  // Path lines between flags
+  for(let x=12;x<24;x++) px(ctx,x,7+Math.round(Math.sin(x*0.5)*1.5),d);
+  for(let x=26;x<38;x++) px(ctx,x,12+Math.round(Math.sin(x*0.4)*1),d);
+}
+
+function drawGuildHallArt(ctx) {
+  const g=P.g, d=P.d, b=P.b, o=P.o, p=P.p;
+  // 4 characters
+  const chars = [[8,g],[18,b],[28,o],[38,p]];
+  chars.forEach(([cx,c])=>{
+    // Head
+    px(ctx,cx,6,c,3,3);
+    // Body
+    px(ctx,cx,10,c); px(ctx,cx+1,10,c); px(ctx,cx+2,10,c);
+    px(ctx,cx,11,c); px(ctx,cx+1,11,c); px(ctx,cx+2,11,c);
+    px(ctx,cx+1,12,c);
+    // Arms
+    px(ctx,cx-1,10,c); px(ctx,cx+3,10,c);
+    px(ctx,cx-1,11,c); px(ctx,cx+3,11,c);
+    // Legs
+    px(ctx,cx,13,c); px(ctx,cx,14,c);
+    px(ctx,cx+2,13,c); px(ctx,cx+2,14,c);
+    // Eyes
+    px(ctx,cx,7,'#000'); px(ctx,cx+2,7,'#000');
+  });
+  // Floor
+  for(let x=2;x<46;x++) px(ctx,x,17,P.x);
+  for(let x=4;x<44;x++) px(ctx,x,16,P.x);
+  // Banner
+  for(let x=6;x<42;x++) px(ctx,x,2,d);
+  for(let x=8;x<40;x++) px(ctx,x,3,d);
+}
+
+function drawArmoryArt(ctx) {
+  const g=P.g, d=P.d, o=P.o, b=P.b;
+  // Shield
+  for(let y=6;y<18;y++){
+    const w = y<10 ? 8 : 8-(y-10)*1;
+    if(w>0) for(let x=-w;x<=w;x++) px(ctx,24+x,y,d);
+  }
+  for(let y=7;y<17;y++){
+    const w = y<10 ? 6 : 6-(y-9)*1;
+    if(w>0) for(let x=-w;x<=w;x++) px(ctx,24+x,y,P.G);
+  }
+  // Shield emblem (star)
+  px(ctx,24,9,g);px(ctx,23,10,g);px(ctx,25,10,g);px(ctx,22,11,g);px(ctx,24,11,g);px(ctx,26,11,g);px(ctx,23,12,g);px(ctx,25,12,g);px(ctx,24,13,g);
+  // Left sword
+  for(let y=2;y<20;y++) px(ctx,12,y,b);
+  px(ctx,11,4,b);px(ctx,13,4,b); // cross guard
+  px(ctx,10,4,b);px(ctx,14,4,b);
+  px(ctx,12,2,b); // tip
+  px(ctx,11,20,o);px(ctx,12,20,o);px(ctx,13,20,o); // pommel
+  // Right sword
+  for(let y=2;y<20;y++) px(ctx,36,y,b);
+  px(ctx,35,4,b);px(ctx,37,4,b);
+  px(ctx,34,4,b);px(ctx,38,4,b);
+  px(ctx,36,2,b);
+  px(ctx,35,20,o);px(ctx,36,20,o);px(ctx,37,20,o);
+}
+
+function drawForgeArt(ctx) {
+  const g=P.g, d=P.d, o=P.o;
+  // Anvil body
+  for(let x=14;x<34;x++) px(ctx,x,14,P.x,1,3);
+  for(let x=12;x<36;x++) px(ctx,x,17,P.x,1,2);
+  for(let x=10;x<38;x++) px(ctx,x,19,P.x);
+  // Anvil top (working surface)
+  for(let x=16;x<32;x++) px(ctx,x,13,P.w);
+  for(let x=13;x<35;x++) px(ctx,x,14,P.x);
+  // Horn
+  for(let x=8;x<14;x++) px(ctx,x,14,P.x); px(ctx,7,14,P.x); px(ctx,7,15,P.x);
+  // Legs
+  for(let y=20;y<23;y++){px(ctx,14,y,P.x,3,1);px(ctx,31,y,P.x,3,1);}
+  // Hammer
+  for(let y=2;y<12;y++) px(ctx,30,y,o);
+  px(ctx,28,2,P.w,5,3);
+  // Sparks!
+  const sparks=[[20,8],[16,6],[26,5],[22,4],[18,10],[32,9],[14,7],[24,2],[34,6],[12,4],[28,7]];
+  sparks.forEach(([sx,sy])=>{
+    const c = Math.random()>0.5 ? g : o;
+    px(ctx,sx,sy,c);
+  });
+  // Heat glow on anvil surface
+  for(let x=18;x<30;x++) px(ctx,x,12,P.O);
+}
+
+function drawBriefingArt(ctx) {
+  const g=P.g, d=P.d, b=P.b;
+  // Document
+  for(let x=14;x<34;x++) for(let y=2;y<22;y++) px(ctx,x,y,'#1a1f26');
+  for(let x=14;x<34;x++) { px(ctx,x,2,P.x); px(ctx,x,21,P.x); }
+  for(let y=2;y<22;y++) { px(ctx,14,y,P.x); px(ctx,33,y,P.x); }
+  // Corner fold
+  for(let i=0;i<3;i++){px(ctx,31+i,2,P.x);px(ctx,33,2+i,P.x);px(ctx,31,4-i,P.x);}
+  // Text lines
+  for(let x=16;x<26;x++) px(ctx,x,5,d);
+  for(let x=16;x<31;x++) px(ctx,x,8,P.x);
+  for(let x=16;x<29;x++) px(ctx,x,10,P.x);
+  for(let x=16;x<31;x++) px(ctx,x,12,P.x);
+  for(let x=16;x<27;x++) px(ctx,x,14,P.x);
+  for(let x=16;x<31;x++) px(ctx,x,16,P.x);
+  // Checkmarks
+  [[16,8,g],[16,12,g],[16,16,g],[16,10,b],[16,14,b]].forEach(([cx,cy,c])=>{
+    px(ctx,cx,cy,c);px(ctx,cx+1,cy+1,c);px(ctx,cx+2,cy,c);
+  });
+  // CLASSIFIED stamp
+  for(let x=4;x<14;x++) for(let y=8;y<14;y++) px(ctx,x,y,'rgba(255,123,114,0.15)');
+  px(ctx,5,10,P.red||'#ff7b72',8,1);px(ctx,5,12,P.red||'#ff7b72',8,1);
+  // Seal
+  for(let a=0;a<Math.PI*2;a+=0.3){
+    px(ctx,Math.round(40+Math.cos(a)*3),Math.round(16+Math.sin(a)*3),g);
+  }
+  px(ctx,40,16,g);
+}
+
+function renderAllArt() {
+  const artMap = {
+    'art-boot': drawBootArt,
+    'art-m1': drawBootArt,
+    'art-m2': drawOracleArt,
+    'art-m3': drawWarTableArt,
+    'art-m4': drawGuildHallArt,
+    'art-m5': drawArmoryArt,
+    'art-m6': drawForgeArt,
+    'art-m7': drawBriefingArt
+  };
+  Object.entries(artMap).forEach(([id, fn]) => {
+    const canvas = document.getElementById(id);
+    if (canvas) fn(canvas.getContext('2d'));
+  });
+}
+
+// ═══════════════════════════════════════
+// MUSIC ENGINE (Sonic-inspired chiptune)
+// ═══════════════════════════════════════
+const Music = {
+  ctx: null,
+  master: null,
+  playing: false,
+  nextTime: 0,
+  loopTimeout: null,
+  BPM: 152,
+
+  // Note frequencies
+  N: {
+    C3:130.81,D3:146.83,E3:164.81,F3:174.61,G3:196.00,A3:220.00,B3:246.94,Bb3:233.08,
+    C4:261.63,D4:293.66,E4:329.63,F4:349.23,G4:392.00,A4:440.00,B4:493.88,
+    C5:523.25,D5:587.33,E5:659.25,F5:698.46,G5:783.99,A5:880.00,B5:987.77,
+    C6:1046.50,D6:1174.66,E6:1318.51,F6:1396.91,G6:1567.98
+  },
+
+  init() {
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    this.master = this.ctx.createGain();
+    this.master.gain.value = 0.35;
+    this.master.connect(this.ctx.destination);
+  },
+
+  tone(freq, time, dur, type, vol) {
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = type;
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, time);
+    g.gain.setValueAtTime(vol, time + dur * 0.7);
+    g.gain.exponentialRampToValueAtTime(0.001, time + dur * 0.95);
+    o.connect(g);
+    g.connect(this.master);
+    o.start(time);
+    o.stop(time + dur);
+  },
+
+  noise(time, dur, hp, vol) {
+    const len = Math.max(1, Math.floor(this.ctx.sampleRate * dur));
+    const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const s = this.ctx.createBufferSource();
+    s.buffer = buf;
+    const f = this.ctx.createBiquadFilter();
+    f.type = 'highpass';
+    f.frequency.value = hp;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(vol, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + dur * 0.8);
+    s.connect(f);
+    f.connect(g);
+    g.connect(this.master);
+    s.start(time);
+    s.stop(time + dur);
+  },
+
+  kick(time) {
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.frequency.setValueAtTime(150, time);
+    o.frequency.exponentialRampToValueAtTime(30, time + 0.08);
+    g.gain.setValueAtTime(0.18, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+    o.connect(g);
+    g.connect(this.master);
+    o.start(time);
+    o.stop(time + 0.12);
+  },
+
+  scheduleLoop() {
+    if (!this.playing) return;
+    const N = this.N;
+    const eighth = 60 / this.BPM / 2;
+    const t = this.nextTime || (this.ctx.currentTime + 0.05);
+
+    // ── MELODY (8 bars of 8th notes = 64 steps) ──
+    const mel = [
+      // Bar 1-2: ascending run, classic Sonic
+      N.C5,N.D5,N.E5,N.G5, N.A5,N.G5,N.E5,N.D5,
+      N.C5,N.D5,N.E5,N.G5, N.A5,0,N.C6,0,
+      // Bar 3-4: descending answer
+      N.B5,N.A5,N.G5,N.E5, N.D5,N.E5,N.G5,N.A5,
+      N.G5,N.E5,N.D5,N.C5, 0,0,0,0,
+      // Bar 5-6: second phrase (higher energy)
+      N.E5,N.F5,N.G5,N.A5, N.C6,N.A5,N.G5,N.E5,
+      N.D5,N.E5,N.F5,N.A5, N.G5,0,N.E5,0,
+      // Bar 7-8: resolution
+      N.C5,N.E5,N.G5,N.C6, N.B5,N.G5,N.E5,N.D5,
+      N.C5,0,0,0, 0,0,0,0
+    ];
+
+    mel.forEach((f,i) => {
+      if(f) this.tone(f, t + i*eighth, eighth*0.8, 'square', 0.055);
+    });
+
+    // ── HARMONY (quiet arpeggiated chords) ──
+    const har = [
+      N.E4,0,N.G4,0, N.E4,0,N.G4,0,
+      N.E4,0,N.G4,0, N.E4,0,N.A4,0,
+      N.D4,0,N.G4,0, N.D4,0,N.G4,0,
+      N.E4,0,N.G4,0, 0,0,0,0,
+      N.C4,0,N.E4,0, N.A4,0,N.E4,0,
+      N.D4,0,N.F4,0, N.D4,0,N.E4,0,
+      N.C4,0,N.E4,0, N.G4,0,N.E4,0,
+      N.C4,0,0,0, 0,0,0,0
+    ];
+
+    har.forEach((f,i) => {
+      if(f) this.tone(f, t + i*eighth, eighth*0.6, 'square', 0.025);
+    });
+
+    // ── BASS (triangle wave, quarter notes) ──
+    const bas = [
+      N.C3,0,N.C3,0, N.G3,0,N.G3,0,
+      N.A3,0,N.A3,0, N.E3,0,N.E3,0,
+      N.F3,0,N.F3,0, N.C3,0,N.C3,0,
+      N.G3,0,N.G3,0, N.G3,0,0,0,
+      N.C3,0,N.C3,0, N.A3,0,N.A3,0,
+      N.D3,0,N.D3,0, N.G3,0,N.G3,0,
+      N.F3,0,N.F3,0, N.G3,0,N.G3,0,
+      N.C3,0,N.C3,0, N.C3,0,0,0
+    ];
+
+    bas.forEach((f,i) => {
+      if(f) this.tone(f, t + i*eighth, eighth*1.8, 'triangle', 0.1);
+    });
+
+    // ── DRUMS ──
+    for (let i = 0; i < 64; i++) {
+      const bt = t + i * eighth;
+      // Hi-hat every 8th (alternating loud/quiet)
+      this.noise(bt, 0.025, 9000, i%2===0 ? 0.02 : 0.012);
+      // Kick on 1 and 3 (every 4 eighths)
+      if (i%8===0 || i%8===4) this.kick(bt);
+      // Snare on 2 and 4
+      if (i%8===2 || i%8===6) this.noise(bt, 0.06, 2500, 0.04);
+    }
+
+    // Schedule next loop
+    const loopLen = 64 * eighth;
+    this.nextTime = t + loopLen;
+    const msUntil = (this.nextTime - this.ctx.currentTime - 0.15) * 1000;
+    this.loopTimeout = setTimeout(() => this.scheduleLoop(), Math.max(10, msUntil));
+  },
+
+  toggle() {
+    if (!this.ctx) this.init();
+    this.playing = !this.playing;
+    if (this.playing) {
+      this.ctx.resume();
+      this.nextTime = 0;
+      this.scheduleLoop();
+    } else {
+      clearTimeout(this.loopTimeout);
+    }
+    return this.playing;
+  },
+
+  stop() {
+    this.playing = false;
+    clearTimeout(this.loopTimeout);
+  }
+};
+
+function toggleMusic() {
+  const on = Music.toggle();
+  document.getElementById('music-btn').classList.toggle('playing', on);
+  document.getElementById('eq-bars').classList.toggle('active', on);
+  document.getElementById('music-label').textContent = on ? 'MUSIC' : 'MUSIC';
+}
+
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+const TOTAL_MISSIONS = 7;
+let currentMission = 1;
+const state = {
+  fields: {},
+  files: { m2:[], m3:[], m4:[], m5:[] }
+};
+
+// ═══════════════════════════════════════
+// BOOT SEQUENCE
+// ═══════════════════════════════════════
+const bootLines = [
+  ['Scanning project structure...','ok'],
+  ['Loading template architecture...','ok'],
+  ['Checking planning/ directory...','ok'],
+  ['Validating skill framework...','ok'],
+  ['Brain core: EMPTY','warn'],
+  ['Awaiting initialization...','ok'],
+];
+
+(function runBoot(){
+  const log = document.getElementById('boot-log');
+  bootLines.forEach((line,i) => {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'boot-line';
+      el.innerHTML = `> ${line[0]} <span class="${line[1]}">[${line[1].toUpperCase()}]</span>`;
+      log.appendChild(el);
+    }, 280*(i+1));
+  });
+})();
+
+function startGame() {
+  document.getElementById('boot-screen').classList.add('hidden');
+  document.getElementById('game-screen').classList.remove('hidden');
+  renderNavDots();
+  updateForgePreview();
+  showToast('System Online','Brain Forge initialized. Begin Mission 1.');
+}
+
+// ═══════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════
+function goToMission(n) {
+  if (n<1||n>TOTAL_MISSIONS) return;
+  document.querySelectorAll('.mission').forEach(m=>m.classList.remove('active'));
+  document.getElementById(`mission-${n}`).classList.add('active');
+  currentMission = n;
+  document.getElementById('header-mission-label').textContent = `Mission ${n} / ${TOTAL_MISSIONS}`;
+  document.getElementById('progress-fill').style.width = `${(n/TOTAL_MISSIONS)*100}%`;
+  document.getElementById('btn-prev').disabled = (n===1);
+  const btnNext = document.getElementById('btn-next');
+  if (n===TOTAL_MISSIONS) { btnNext.textContent='Review Complete'; btnNext.disabled=true; buildSummary(); }
+  else { btnNext.textContent='Next Mission >'; btnNext.disabled=false; }
+  renderNavDots();
+  document.getElementById('mission-container').scrollTop = 0;
+}
+
+function nextMission() {
+  if (currentMission<TOTAL_MISSIONS) {
+    const names=['','Boot Sequence',"Oracle's Chamber",'War Table','Guild Hall','Armory','The Forge','Briefing Room'];
+    goToMission(currentMission+1);
+    showToast('Module Initialized',`Entering ${names[currentMission]}`);
+  }
+}
+function prevMission() { if(currentMission>1) goToMission(currentMission-1); }
+
+function renderNavDots() {
+  const c = document.getElementById('nav-dots');
+  c.innerHTML = '';
+  for(let i=1;i<=TOTAL_MISSIONS;i++){
+    const d = document.createElement('button');
+    d.className = 'nav-dot';
+    if(i===currentMission) d.classList.add('active');
+    if(i<currentMission) d.classList.add('completed');
+    d.onclick = ()=>goToMission(i);
+    d.title = `Mission ${i}`;
+    c.appendChild(d);
+  }
+}
+
+// ═══════════════════════════════════════
+// FIELDS & FILES
+// ═══════════════════════════════════════
+function saveField(el) { state.fields[el.id] = el.value; }
+
+function handleFiles(input, key) {
+  Array.from(input.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const isText = file.type.startsWith('text/') || /\.(md|txt|csv|json|yaml|yml)$/i.test(file.name);
+      state.files[key].push({
+        name:file.name, size:file.size, type:file.type||'unknown',
+        content: isText ? e.target.result : null,
+        base64: !isText ? e.target.result.split(',')[1] : null,
+        isText
+      });
+      renderAttachedFiles(key);
+    };
+    if(file.type.startsWith('text/')||/\.(md|txt|csv|json|yaml|yml)$/i.test(file.name))
+      reader.readAsText(file);
+    else reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+function removeFile(key,i) { state.files[key].splice(i,1); renderAttachedFiles(key); }
+
+function renderAttachedFiles(key) {
+  document.getElementById(`files-${key}`).innerHTML = state.files[key].map((f,i)=>`
+    <div class="attached-file">
+      <span class="filename">${f.name}</span>
+      <span class="filesize">${f.size<1024?f.size+' B':f.size<1048576?(f.size/1024).toFixed(1)+' KB':(f.size/1048576).toFixed(1)+' MB'}</span>
+      <button class="remove-btn" onclick="removeFile('${key}',${i})">remove</button>
+    </div>`).join('');
+}
+
+// Drag and drop
+document.addEventListener('DOMContentLoaded', () => {
+  renderAllArt();
+  document.querySelectorAll('.drop-zone').forEach(zone => {
+    zone.addEventListener('dragover', e=>{e.preventDefault();zone.classList.add('dragover');});
+    zone.addEventListener('dragleave', ()=>zone.classList.remove('dragover'));
+    zone.addEventListener('drop', e=>{
+      e.preventDefault(); zone.classList.remove('dragover');
+      const inp = zone.querySelector('input[type="file"]');
+      const key = zone.id.replace('drop-','');
+      if(e.dataTransfer.files.length){
+        const dt = new DataTransfer();
+        Array.from(e.dataTransfer.files).forEach(f=>dt.items.add(f));
+        inp.files = dt.files;
+        handleFiles(inp, key);
+      }
+    });
+  });
+});
+
+// ═══════════════════════════════════════
+// FORGE PREVIEW
+// ═══════════════════════════════════════
+function updateForgePreview() {
+  const problem = document.getElementById('m6-problem')?.value || '';
+  const output = document.getElementById('m6-output')?.value || 'generated/roadmap.md';
+  const custom = document.getElementById('m6-custom')?.value || '';
+  const reads = Array.from(document.querySelectorAll('#m6-reads input:checked')).map(c=>c.value);
+  const readList = reads.map(r=>`- \`${r}\``).join('\n');
+  const customSec = custom ? `\n### Custom Rules\n\n${custom}\n` : '';
+
+  const preview = `# Roadmap Skill
+
+${problem}
+
+> **Note**: This skill generates a consolidated roadmap view.
+> It reads planning files and produces output in generated/.
+> It does NOT modify any planning files.
+
+---
+
+## Project Structure
+
+### Reads
+${readList}
+
+### Writes
+- \`${output}\`
+
+---
+
+## Your Task
+
+### 1. Read Current State
+Read all source files listed above. For each team plan,
+capture: team name, current milestone, feature priorities,
+status, and any flags or risks.
+
+### 2. Build Consolidated View
+Organize all features by milestone, then by team:
+
+| Milestone | Team | Feature | Status | Estimate | Flags |
+|-----------|------|---------|--------|----------|-------|
+
+Cross-reference against product_targets.md to identify:
+- Must-have features missing from team plans
+- Features planned but not in targets (scope creep?)
+- Resource conflicts (from capacity.md)
+
+### 3. Generate Roadmap
+Write the consolidated roadmap to \`${output}\`.
+
+Include:
+- Executive summary (1-2 paragraphs)
+- Per-milestone breakdown with feature tables
+- Resource allocation summary
+- Risk flags and gaps
+
+### 4. Summary
+Print a brief summary:
+- Features across milestones
+- Critical gaps or conflicts
+- Recommended next steps
+
+---
+
+## Rules
+- NEVER modify files in planning/
+- Regenerate output completely each run
+- Flag missing data but continue with what's available
+${customSec}
+---
+
+## Notes
+- Run after updating team plans or feature specs
+- Pairs well with /risk-evaluation
+- Output is disposable -- safe to regenerate`;
+
+  const el = document.getElementById('forge-preview');
+  if(el) el.textContent = preview;
+  state.fields['m6-problem']=problem;
+  state.fields['m6-output']=output;
+  state.fields['m6-custom']=custom;
+  state.fields['m6-reads']=reads;
+}
+
+// ═══════════════════════════════════════
+// SUMMARY & EXPORT
+// ═══════════════════════════════════════
+function buildSummary() {
+  const sections = [
+    {label:'Project Identity',file:'project-charter.md',check:()=>state.fields['m1-project-name']||state.fields['m1-project-mission']},
+    {label:'Validation Roadmap',file:'validation_roadmap.md',check:()=>state.fields['m2-hypotheses']||state.fields['m2-questions']||state.files.m2.length},
+    {label:'Product Targets',file:'product_targets.md',check:()=>state.fields['m3-milestones']||state.files.m3.length},
+    {label:'Capacity',file:'capacity.md',check:()=>state.fields['m4-teams']||state.files.m4.length},
+    {label:'Feature Registry',file:'feature_registry.md',check:()=>state.fields['m5-features']||state.files.m5.length},
+    {label:'Roadmap Skill',file:'.claude/commands/roadmap.md',check:()=>state.fields['m6-problem']},
+  ];
+  document.getElementById('summary-grid').innerHTML = sections.map(s=>{
+    const ok = s.check();
+    return `<div class="summary-card ${ok?'filled':'empty'}"><div class="summary-card-title">${ok?'[READY]':'[EMPTY]'} ${s.label}</div><div class="summary-card-detail">${s.file}</div></div>`;
+  }).join('');
+}
+
+function exportBrain() {
+  const forgeReads = Array.from(document.querySelectorAll('#m6-reads input:checked')).map(c=>c.value);
+  const mapFiles = key => state.files[key].map(f=>({name:f.name,type:f.type,isText:f.isText,content:f.content,base64:f.base64}));
+
+  const data = {
+    version:'1.0',
+    exportDate: new Date().toISOString().split('T')[0],
+    tool:'The Brain Forge',
+    missions: {
+      boot_sequence: {
+        projectName: state.fields['m1-project-name']||'',
+        projectMission: state.fields['m1-project-mission']||'',
+        sprintCadence: state.fields['m1-sprint-cadence']||'',
+        additionalContext: state.fields['m1-context']||'',
+      },
+      oracle_chamber: {
+        hypotheses: state.fields['m2-hypotheses']||'',
+        questions: state.fields['m2-questions']||'',
+        attachedFiles: mapFiles('m2'),
+      },
+      war_table: {
+        milestones: state.fields['m3-milestones']||'',
+        successCriteria: state.fields['m3-success']||'',
+        attachedFiles: mapFiles('m3'),
+      },
+      guild_hall: {
+        teams: state.fields['m4-teams']||'',
+        attachedFiles: mapFiles('m4'),
+      },
+      armory: {
+        features: state.fields['m5-features']||'',
+        externalLinks: state.fields['m5-external-links']||'',
+        attachedFiles: mapFiles('m5'),
+      },
+      forge: {
+        skillProblem: state.fields['m6-problem']||'',
+        skillReads: forgeReads,
+        skillOutput: state.fields['m6-output']||'generated/roadmap.md',
+        skillCustomRules: state.fields['m6-custom']||'',
+      },
+    },
+  };
+
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'brain-forge-export.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  document.getElementById('export-instructions').classList.add('visible');
+  showToast('Brain Exported','brain-forge-export.json downloaded.');
+}
+
+// ═══════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════
+function showToast(title, msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-title').textContent = title;
+  document.getElementById('toast-message').textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
